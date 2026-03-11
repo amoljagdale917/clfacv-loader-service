@@ -1,0 +1,6 @@
+com/clfacv/loader/parser/FixedWidthFacvParser.class
+com/clfacv/loader/model/FacvRecord.class
+com/clfacv/loader/service/FacvFileProcessingService.class
+com/clfacv/loader/repository/FacvRecordRepository.class
+com/clfacv/loader/ClfacvLoaderApplication.class
+com/clfacv/loader/scheduler/FacvScheduler.class

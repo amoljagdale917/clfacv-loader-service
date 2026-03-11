@@ -1,0 +1,6 @@
+/Users/amoljagdale/Documents/clfacv-loader/src/main/java/com/clfacv/loader/repository/FacvRecordRepository.java
+/Users/amoljagdale/Documents/clfacv-loader/src/main/java/com/clfacv/loader/service/FacvFileProcessingService.java
+/Users/amoljagdale/Documents/clfacv-loader/src/main/java/com/clfacv/loader/ClfacvLoaderApplication.java
+/Users/amoljagdale/Documents/clfacv-loader/src/main/java/com/clfacv/loader/parser/FixedWidthFacvParser.java
+/Users/amoljagdale/Documents/clfacv-loader/src/main/java/com/clfacv/loader/model/FacvRecord.java
+/Users/amoljagdale/Documents/clfacv-loader/src/main/java/com/clfacv/loader/scheduler/FacvScheduler.java
