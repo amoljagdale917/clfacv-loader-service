@@ -3,8 +3,8 @@ package com.clfacv.loader.service;
 import com.clfacv.loader.config.LoaderProperties;
 import com.clfacv.loader.parser.FixedWidthRecordParser;
 import com.clfacv.loader.repository.FixedWidthBatchRepository;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.io.BufferedReader;
@@ -20,24 +20,22 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Service
+@Slf4j
+@RequiredArgsConstructor
 public class FileLoadingService {
 
-    private static final Logger log = LoggerFactory.getLogger(FileLoadingService.class);
     private static final DateTimeFormatter FILE_TS_FORMAT = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss");
 
     private final LoaderProperties loaderProperties;
     private final FixedWidthRecordParser parser;
     private final FixedWidthBatchRepository repository;
 
-    public FileLoadingService(LoaderProperties loaderProperties,
-                              FixedWidthRecordParser parser,
-                              FixedWidthBatchRepository repository) {
-        this.loaderProperties = loaderProperties;
-        this.parser = parser;
-        this.repository = repository;
-    }
-
     public void processConfiguredFiles() {
+        if (!hasLoaderDirectoriesConfigured()) {
+            log.warn("Loader path config missing. Set app.loader.input-directory, app.loader.success-directory, and app.loader.failed-directory for active profile.");
+            return;
+        }
+
         List<LoaderProperties.FileDefinition> files = loaderProperties.getFiles();
 
         if (files == null || files.isEmpty()) {
@@ -144,6 +142,16 @@ public class FileLoadingService {
     private boolean isSupportedDataSource(String dataSource) {
         String key = dataSource.trim().toLowerCase();
         return "primary".equals(key) || "secondary".equals(key);
+    }
+
+    private boolean hasLoaderDirectoriesConfigured() {
+        return hasText(loaderProperties.getInputDirectory())
+                && hasText(loaderProperties.getSuccessDirectory())
+                && hasText(loaderProperties.getFailedDirectory());
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.trim().isEmpty();
     }
 
     private void moveProcessedFile(Path sourceFile, boolean successful) {

@@ -1,21 +1,17 @@
 package com.clfacv.loader.scheduler;
 
 import com.clfacv.loader.service.FileLoadingService;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 @Component
+@Slf4j
+@RequiredArgsConstructor
 public class FacvScheduler {
 
-    private static final Logger log = LoggerFactory.getLogger(FacvScheduler.class);
-
     private final FileLoadingService loadingService;
-
-    public FacvScheduler(FileLoadingService loadingService) {
-        this.loadingService = loadingService;
-    }
 
     @Scheduled(cron = "${app.scheduler.cron:0 0/5 * * * *}")
     public void loadFacvFiles() {

@@ -1,6 +1,7 @@
 package com.clfacv.loader.repository;
 
 import com.clfacv.loader.config.LoaderProperties;
+import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
@@ -12,15 +13,12 @@ import java.util.List;
 import java.util.regex.Pattern;
 
 @Repository
+@RequiredArgsConstructor
 public class FixedWidthBatchRepository {
 
     private static final Pattern SQL_IDENTIFIER = Pattern.compile("[A-Za-z][A-Za-z0-9_$#.]*");
 
     private final JdbcTemplateResolver jdbcTemplateResolver;
-
-    public FixedWidthBatchRepository(JdbcTemplateResolver jdbcTemplateResolver) {
-        this.jdbcTemplateResolver = jdbcTemplateResolver;
-    }
 
     public void saveBatch(String dataSource,
                           String tableName,

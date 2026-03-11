@@ -10,8 +10,8 @@ Spring Boot scheduler-based fixed-width file loader.
 
 ## Current setup
 Current config loads:
-- `lms/file/input/CLFACV.TXT`
-- `lms/file/input/CLFACVHASE.TXT`
+- `CLFACV.TXT`
+- `CLFACVHASE.TXT`
 
 Both are mapped to table `STG_HK_OBS_FACV` using lengths:
 `3,12,3,1,1,11,11,5,11,7,1`
