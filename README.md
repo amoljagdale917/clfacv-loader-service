@@ -17,8 +17,9 @@ Both are mapped to table `STG_HK_OBS_FACV` using lengths:
 `3,12,3,1,1,11,11,5,11,7,1`
 
 ## Reusable loader logic
-Loader is now config-driven using `app.loader.files` in:
-- `src/main/resources/application.yml`
+Loader is now config-driven using `app.loader.files` in active profile files:
+- `src/main/resources/application-postprod.yml`
+- `src/main/resources/application-prod.yml`
 
 For each configured file:
 - parse fixed-width columns by configured lengths
@@ -32,7 +33,7 @@ For each configured file:
 - moved name format: `fileName_yyyyMMdd_HHmmss`
 
 ## Add new file/table (no code change)
-Add a new item under `app.loader.files`:
+Add a new item under `app.loader.files` in the active profile YAML:
 
 ```yaml
 app:
@@ -109,11 +110,11 @@ mvn spring-boot:run -Dspring-boot.run.profiles=prod
 
 ## Scheduler
 Cron is profile-specific:
-- `src/main/resources/application-prod.yml`: `0 0 0 * * *` (midnight daily)
-- `src/main/resources/application-postprod.yml`: `0 0/5 * * * *` (test default, change as needed)
+- `src/main/resources/application-prod.yml`: `app.loader.scheduler.cron=0 0 0 * * *` (midnight daily)
+- `src/main/resources/application-postprod.yml`: `app.loader.scheduler.cron=0 0/2 * * * *` (test default, change as needed)
 
 If profile cron is not set, code fallback is:
 
 ```properties
-app.scheduler.cron=0 0/5 * * * *
+app.loader.scheduler.cron=0 0/5 * * * *
 ```

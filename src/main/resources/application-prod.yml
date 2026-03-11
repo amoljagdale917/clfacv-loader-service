@@ -9,10 +9,65 @@ spring:
     driver-class-name: oracle.jdbc.OracleDriver
 
 app:
-  scheduler:
-    # Midnight daily
-    cron: "0 0 0 * * *"
   loader:
+    scheduler:
+      # Midnight daily
+      cron: "0 0 0 * * *"
     input-directory: lms/files/input
     success-directory: lms/files/success
     failed-directory: lms/files/failed
+    input-charset: UTF-8
+    batch-size: 500
+    files:
+      - file-name: CLFACV.TXT
+        data-source: primary
+        table-name: STG_HK_OBS_FACV
+        columns:
+          - name: BNK_NO
+            length: 3
+          - name: CUST_ACCT_NO
+            length: 12
+          - name: SYS_COD
+            length: 3
+          - name: REC_TYPE
+            length: 1
+          - name: CUST_GP
+            length: 1
+          - name: ITL_CUST_NO
+            length: 11
+          - name: FILLER
+            length: 11
+          - name: LMT_ID
+            length: 5
+          - name: CUST_ID
+            length: 11
+          - name: FILLER1
+            length: 7
+          - name: MAINT_ACT
+            length: 1
+      - file-name: CLFACVHASE.TXT
+        data-source: primary
+        table-name: STG_HK_OBS_FACV
+        columns:
+          - name: BNK_NO
+            length: 3
+          - name: CUST_ACCT_NO
+            length: 12
+          - name: SYS_COD
+            length: 3
+          - name: REC_TYPE
+            length: 1
+          - name: CUST_GP
+            length: 1
+          - name: ITL_CUST_NO
+            length: 11
+          - name: FILLER
+            length: 11
+          - name: LMT_ID
+            length: 5
+          - name: CUST_ID
+            length: 11
+          - name: FILLER1
+            length: 7
+          - name: MAINT_ACT
+            length: 1
