@@ -60,7 +60,11 @@ mvn spring-boot:run -Dspring-boot.run.profiles=prod
 ```
 
 ## Scheduler
-Cron is configurable in `src/main/resources/application.properties`:
+Cron is profile-specific:
+- `src/main/resources/application-prod.yml`: `0 0 0 * * *` (midnight daily)
+- `src/main/resources/application-postprod.yml`: `0 0/5 * * * *` (test default, change as needed)
+
+If profile cron is not set, code fallback is:
 
 ```properties
 app.scheduler.cron=0 0/5 * * * *

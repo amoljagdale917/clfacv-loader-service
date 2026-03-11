@@ -7,3 +7,8 @@ spring:
     username: prod_user
     password: prod_password
     driver-class-name: oracle.jdbc.OracleDriver
+
+app:
+  scheduler:
+    # Midnight daily
+    cron: "0 0 0 * * *"

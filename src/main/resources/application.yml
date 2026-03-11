@@ -1,3 +1,7 @@
+spring:
+  application:
+    name: clfacv-loader
+
 app:
   loader:
     input-directory: lms/file/input

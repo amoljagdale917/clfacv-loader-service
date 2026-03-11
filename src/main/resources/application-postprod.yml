@@ -3,7 +3,12 @@ spring:
     activate:
       on-profile: postprod
   datasource:
-    url: jdbc:oracle:thin:@//postprod-host:1521/POSTPRODDB
-    username: postprod_user
-    password: postprod_password
+    url: jdbc:oracle:thin:@//localhost:1521/XEPDB1
+    username: system
+    password: change_me
     driver-class-name: oracle.jdbc.OracleDriver
+
+app:
+  scheduler:
+    # Test schedule (change as needed)
+    cron: "0 0/5 * * * *"
