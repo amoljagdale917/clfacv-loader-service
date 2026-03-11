@@ -66,6 +66,14 @@ public class FileLoadingService {
             return false;
         }
 
+        if (fileDefinition.getDataSource() != null
+                && !fileDefinition.getDataSource().trim().isEmpty()
+                && !isSupportedDataSource(fileDefinition.getDataSource())) {
+            log.warn("Skipping {} due to unsupported data-source {}. Use primary or secondary.",
+                    fileDefinition.getFileName(), fileDefinition.getDataSource());
+            return false;
+        }
+
         for (LoaderProperties.ColumnDefinition column : fileDefinition.getColumns()) {
             if (column.getName() == null || column.getName().trim().isEmpty() || column.getLength() <= 0) {
                 log.warn("Skipping {} due to invalid column configuration.", fileDefinition.getFileName());
@@ -100,21 +108,33 @@ public class FileLoadingService {
                 rows.add(parser.parseLine(line, fileDefinition.getColumns()));
 
                 if (rows.size() >= batchSize) {
-                    repository.saveBatch(fileDefinition.getTableName(), fileDefinition.getColumns(), rows);
+                    repository.saveBatch(fileDefinition.getDataSource(), fileDefinition.getTableName(), fileDefinition.getColumns(), rows);
                     totalInserted += rows.size();
                     rows.clear();
                 }
             }
 
             if (!rows.isEmpty()) {
-                repository.saveBatch(fileDefinition.getTableName(), fileDefinition.getColumns(), rows);
+                repository.saveBatch(fileDefinition.getDataSource(), fileDefinition.getTableName(), fileDefinition.getColumns(), rows);
                 totalInserted += rows.size();
             }
 
-            log.info("Finished {} -> {}. Lines read: {}, rows inserted: {}",
-                    fileDefinition.getFileName(), fileDefinition.getTableName(), totalLines, totalInserted);
+            log.info("Finished {} -> {} (datasource={}). Lines read: {}, rows inserted: {}",
+                    fileDefinition.getFileName(), fileDefinition.getTableName(), defaultDataSource(fileDefinition.getDataSource()), totalLines, totalInserted);
         } catch (IOException ex) {
             log.error("Error while processing file {}", filePath, ex);
         }
+    }
+
+    private String defaultDataSource(String dataSource) {
+        if (dataSource == null || dataSource.trim().isEmpty()) {
+            return "primary";
+        }
+        return dataSource.trim();
+    }
+
+    private boolean isSupportedDataSource(String dataSource) {
+        String key = dataSource.trim().toLowerCase();
+        return "primary".equals(key) || "secondary".equals(key);
     }
 }

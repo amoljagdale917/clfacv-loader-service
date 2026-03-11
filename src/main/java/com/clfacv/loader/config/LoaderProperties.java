@@ -50,6 +50,7 @@ public class LoaderProperties {
     public static class FileDefinition {
 
         private String fileName;
+        private String dataSource;
         private String tableName;
         private List<ColumnDefinition> columns = new ArrayList<ColumnDefinition>();
 
@@ -67,6 +68,14 @@ public class LoaderProperties {
 
         public void setTableName(String tableName) {
             this.tableName = tableName;
+        }
+
+        public String getDataSource() {
+            return dataSource;
+        }
+
+        public void setDataSource(String dataSource) {
+            this.dataSource = dataSource;
         }
 
         public List<ColumnDefinition> getColumns() {

@@ -22,6 +22,7 @@ Loader is now config-driven using `app.loader.files` in:
 
 For each configured file:
 - parse fixed-width columns by configured lengths
+- use configured datasource (`primary` or `secondary`)
 - trim leading/trailing spaces before save
 - save `NULL` if trimmed value is empty
 - preserve internal spaces (example: `" A B "` -> `"A B"`)
@@ -35,6 +36,7 @@ app:
   loader:
     files:
       - file-name: NEWFILE.TXT
+        data-source: primary
         table-name: STG_NEW_TABLE
         columns:
           - name: COL1
@@ -47,6 +49,38 @@ app:
 Set datasource values in:
 - `src/main/resources/application-postprod.yml`
 - `src/main/resources/application-prod.yml`
+
+Primary datasource:
+- configured with `spring.datasource.*`
+
+Optional secondary datasource:
+- configure `app.secondary-datasource.*`
+- when not configured, only `primary` is usable
+
+Example secondary datasource config:
+```yaml
+app:
+  secondary-datasource:
+    url: jdbc:oracle:thin:@//host:1521/SERVICE
+    username: user2
+    password: pass2
+    driver-class-name: oracle.jdbc.OracleDriver
+```
+
+Use required datasource per file:
+```yaml
+app:
+  loader:
+    files:
+      - file-name: FILE_A.TXT
+        data-source: primary
+        table-name: TABLE_A
+        columns: [...]
+      - file-name: FILE_B.TXT
+        data-source: secondary
+        table-name: TABLE_B
+        columns: [...]
+```
 
 ## Run
 ```bash

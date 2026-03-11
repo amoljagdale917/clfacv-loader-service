@@ -9,6 +9,7 @@ app:
     batch-size: 500
     files:
       - file-name: CLFACV.TXT
+        data-source: primary
         table-name: STG_HK_OBS_FACV
         columns:
           - name: BNK_NO
@@ -34,6 +35,7 @@ app:
           - name: MAINT_ACT
             length: 1
       - file-name: CLFACVHASE.TXT
+        data-source: primary
         table-name: STG_HK_OBS_FACV
         columns:
           - name: BNK_NO

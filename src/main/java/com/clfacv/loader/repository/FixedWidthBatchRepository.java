@@ -16,13 +16,14 @@ public class FixedWidthBatchRepository {
 
     private static final Pattern SQL_IDENTIFIER = Pattern.compile("[A-Za-z][A-Za-z0-9_$#.]*");
 
-    private final JdbcTemplate jdbcTemplate;
+    private final JdbcTemplateResolver jdbcTemplateResolver;
 
-    public FixedWidthBatchRepository(JdbcTemplate jdbcTemplate) {
-        this.jdbcTemplate = jdbcTemplate;
+    public FixedWidthBatchRepository(JdbcTemplateResolver jdbcTemplateResolver) {
+        this.jdbcTemplateResolver = jdbcTemplateResolver;
     }
 
-    public void saveBatch(String tableName,
+    public void saveBatch(String dataSource,
+                          String tableName,
                           List<LoaderProperties.ColumnDefinition> columns,
                           List<List<String>> rows) {
         if (rows == null || rows.isEmpty()) {
@@ -30,6 +31,7 @@ public class FixedWidthBatchRepository {
         }
 
         String insertSql = buildInsertSql(tableName, columns);
+        JdbcTemplate jdbcTemplate = jdbcTemplateResolver.resolve(dataSource);
 
         jdbcTemplate.batchUpdate(insertSql, rows, rows.size(), this::mapRow);
     }
