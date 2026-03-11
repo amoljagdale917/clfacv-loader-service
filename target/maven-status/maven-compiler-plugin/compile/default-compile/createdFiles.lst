@@ -1,6 +1,8 @@
-com/clfacv/loader/parser/FixedWidthFacvParser.class
-com/clfacv/loader/model/FacvRecord.class
-com/clfacv/loader/service/FacvFileProcessingService.class
-com/clfacv/loader/repository/FacvRecordRepository.class
+com/clfacv/loader/repository/FixedWidthBatchRepository.class
+com/clfacv/loader/config/LoaderProperties$FileDefinition.class
+com/clfacv/loader/parser/FixedWidthRecordParser.class
+com/clfacv/loader/service/FileLoadingService.class
+com/clfacv/loader/config/LoaderProperties$ColumnDefinition.class
+com/clfacv/loader/config/LoaderProperties.class
 com/clfacv/loader/ClfacvLoaderApplication.class
 com/clfacv/loader/scheduler/FacvScheduler.class

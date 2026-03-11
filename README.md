@@ -1,8 +1,6 @@
 # clfacv-loader
 
-Spring Boot scheduler-based loader for fixed-width FACV files:
-- `lms/file/input/CLFACV.TXT`
-- `lms/file/input/CLFACVHASE.TXT`
+Spring Boot scheduler-based fixed-width file loader.
 
 ## Tech stack
 - Java 8
@@ -10,28 +8,43 @@ Spring Boot scheduler-based loader for fixed-width FACV files:
 - Maven
 - Spring JDBC + Oracle (`ojdbc8`)
 
-## STG_HK_OBS_FACV mapping (fixed-width)
-| Column | Length |
-|---|---:|
-| BNK_NO | 3 |
-| CUST_ACCT_NO | 12 |
-| SYS_COD | 3 |
-| REC_TYPE | 1 |
-| CUST_GP | 1 |
-| ITL_CUST_NO | 11 |
-| FILLER | 11 |
-| LMT_ID | 5 |
-| CUST_ID | 11 |
-| FILLER1 | 7 |
-| MAINT_ACT | 1 |
+## Current setup
+Current config loads:
+- `lms/file/input/CLFACV.TXT`
+- `lms/file/input/CLFACVHASE.TXT`
 
-All fields are:
-- trimmed before save (leading and trailing spaces removed)
-- saved as `NULL` when value becomes empty after trim
-- internal spaces are preserved (example: `" A B " -> "A B"`)
+Both are mapped to table `STG_HK_OBS_FACV` using lengths:
+`3,12,3,1,1,11,11,5,11,7,1`
 
-## Configure DB
-Set datasource values in profile files:
+## Reusable loader logic
+Loader is now config-driven using `app.loader.files` in:
+- `src/main/resources/application.yml`
+
+For each configured file:
+- parse fixed-width columns by configured lengths
+- trim leading/trailing spaces before save
+- save `NULL` if trimmed value is empty
+- preserve internal spaces (example: `" A B "` -> `"A B"`)
+- insert into configured table in Oracle
+
+## Add new file/table (no code change)
+Add a new item under `app.loader.files`:
+
+```yaml
+app:
+  loader:
+    files:
+      - file-name: NEWFILE.TXT
+        table-name: STG_NEW_TABLE
+        columns:
+          - name: COL1
+            length: 10
+          - name: COL2
+            length: 5
+```
+
+## Configure DB profiles
+Set datasource values in:
 - `src/main/resources/application-postprod.yml`
 - `src/main/resources/application-prod.yml`
 
@@ -46,24 +59,9 @@ or
 mvn spring-boot:run -Dspring-boot.run.profiles=prod
 ```
 
-Scheduler cron is configurable via:
+## Scheduler
+Cron is configurable in `src/main/resources/application.properties`:
+
 ```properties
 app.scheduler.cron=0 0/5 * * * *
-```
-
-## Optional table DDL (Oracle)
-```sql
-CREATE TABLE STG_HK_OBS_FACV (
-  BNK_NO       CHAR(3),
-  CUST_ACCT_NO CHAR(12),
-  SYS_COD      CHAR(3),
-  REC_TYPE     CHAR(1),
-  CUST_GP      CHAR(1),
-  ITL_CUST_NO  CHAR(11),
-  FILLER       CHAR(11),
-  LMT_ID       CHAR(5),
-  CUST_ID      CHAR(11),
-  FILLER1      CHAR(7),
-  MAINT_ACT    CHAR(1)
-);
 ```
