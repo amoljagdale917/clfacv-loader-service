@@ -12,3 +12,7 @@ app:
   scheduler:
     # Midnight daily
     cron: "0 0 0 * * *"
+  loader:
+    input-directory: lms/files/input
+    success-directory: lms/files/success
+    failed-directory: lms/files/failed

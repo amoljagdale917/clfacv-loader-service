@@ -11,6 +11,8 @@ import java.util.List;
 public class LoaderProperties {
 
     private String inputDirectory = "lms/file/input";
+    private String successDirectory = "lms/file/success";
+    private String failedDirectory = "lms/file/failed";
     private String inputCharset = "UTF-8";
     private int batchSize = 500;
     private List<FileDefinition> files = new ArrayList<FileDefinition>();
@@ -29,6 +31,22 @@ public class LoaderProperties {
 
     public void setInputCharset(String inputCharset) {
         this.inputCharset = inputCharset;
+    }
+
+    public String getSuccessDirectory() {
+        return successDirectory;
+    }
+
+    public void setSuccessDirectory(String successDirectory) {
+        this.successDirectory = successDirectory;
+    }
+
+    public String getFailedDirectory() {
+        return failedDirectory;
+    }
+
+    public void setFailedDirectory(String failedDirectory) {
+        this.failedDirectory = failedDirectory;
     }
 
     public int getBatchSize() {

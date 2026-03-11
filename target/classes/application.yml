@@ -5,6 +5,8 @@ spring:
 app:
   loader:
     input-directory: lms/file/input
+    success-directory: lms/file/success
+    failed-directory: lms/file/failed
     input-charset: UTF-8
     batch-size: 500
     files:

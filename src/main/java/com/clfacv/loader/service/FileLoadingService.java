@@ -13,6 +13,9 @@ import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -20,6 +23,7 @@ import java.util.List;
 public class FileLoadingService {
 
     private static final Logger log = LoggerFactory.getLogger(FileLoadingService.class);
+    private static final DateTimeFormatter FILE_TS_FORMAT = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss");
 
     private final LoaderProperties loaderProperties;
     private final FixedWidthRecordParser parser;
@@ -92,6 +96,7 @@ public class FileLoadingService {
             return;
         }
 
+        boolean processingSuccess = false;
         int totalInserted = 0;
         int totalLines = 0;
         int batchSize = Math.max(loaderProperties.getBatchSize(), 1);
@@ -121,8 +126,11 @@ public class FileLoadingService {
 
             log.info("Finished {} -> {} (datasource={}). Lines read: {}, rows inserted: {}",
                     fileDefinition.getFileName(), fileDefinition.getTableName(), defaultDataSource(fileDefinition.getDataSource()), totalLines, totalInserted);
-        } catch (IOException ex) {
+            processingSuccess = true;
+        } catch (Exception ex) {
             log.error("Error while processing file {}", filePath, ex);
+        } finally {
+            moveProcessedFile(filePath, processingSuccess);
         }
     }
 
@@ -136,5 +144,25 @@ public class FileLoadingService {
     private boolean isSupportedDataSource(String dataSource) {
         String key = dataSource.trim().toLowerCase();
         return "primary".equals(key) || "secondary".equals(key);
+    }
+
+    private void moveProcessedFile(Path sourceFile, boolean successful) {
+        String targetDirectory = successful ? loaderProperties.getSuccessDirectory() : loaderProperties.getFailedDirectory();
+        if (targetDirectory == null || targetDirectory.trim().isEmpty()) {
+            log.warn("Cannot move {} because target directory is empty.", sourceFile.getFileName());
+            return;
+        }
+
+        Path targetDirPath = Paths.get(targetDirectory);
+        String stampedName = sourceFile.getFileName().toString() + "_" + LocalDateTime.now().format(FILE_TS_FORMAT);
+        Path targetFile = targetDirPath.resolve(stampedName);
+
+        try {
+            Files.createDirectories(targetDirPath);
+            Files.move(sourceFile, targetFile, StandardCopyOption.REPLACE_EXISTING);
+            log.info("Moved {} to {}", sourceFile.getFileName(), targetFile);
+        } catch (IOException ex) {
+            log.error("Failed to move {} to {}", sourceFile.getFileName(), targetFile, ex);
+        }
     }
 }

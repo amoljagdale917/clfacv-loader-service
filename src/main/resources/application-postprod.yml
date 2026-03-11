@@ -12,3 +12,7 @@ app:
   scheduler:
     # Test schedule (change as needed)
     cron: "0 0/5 * * * *"
+  loader:
+    input-directory: /var/hub/incomong
+    success-directory: /var/file/success
+    failed-directory: /var/file/failed

@@ -27,6 +27,9 @@ For each configured file:
 - save `NULL` if trimmed value is empty
 - preserve internal spaces (example: `" A B "` -> `"A B"`)
 - insert into configured table in Oracle
+- if load succeeds, move file to `success-directory`
+- if load fails, move file to `failed-directory`
+- moved name format: `fileName_yyyyMMdd_HHmmss`
 
 ## Add new file/table (no code change)
 Add a new item under `app.loader.files`:
@@ -81,6 +84,17 @@ app:
         table-name: TABLE_B
         columns: [...]
 ```
+
+## Profile paths
+Postprod:
+- input: `/var/hub/incomong`
+- success: `/var/file/success`
+- failed: `/var/file/failed`
+
+Prod:
+- input: `lms/files/input`
+- success: `lms/files/success`
+- failed: `lms/files/failed`
 
 ## Run
 ```bash
