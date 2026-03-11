@@ -31,14 +31,19 @@ All fields are:
 - internal spaces are preserved (example: `" A B " -> "A B"`)
 
 ## Configure DB
-Edit `src/main/resources/application.properties`:
-- `spring.datasource.url`
-- `spring.datasource.username`
-- `spring.datasource.password`
+Set datasource values in profile files:
+- `src/main/resources/application-postprod.yml`
+- `src/main/resources/application-prod.yml`
 
 ## Run
 ```bash
-mvn spring-boot:run
+mvn spring-boot:run -Dspring-boot.run.profiles=postprod
+```
+
+or
+
+```bash
+mvn spring-boot:run -Dspring-boot.run.profiles=prod
 ```
 
 Scheduler cron is configurable via:

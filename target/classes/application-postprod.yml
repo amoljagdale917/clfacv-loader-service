@@ -1,0 +1,19 @@
+spring:
+  config:
+    activate:
+      on-profile: postprod
+  datasource:
+    url: jdbc:oracle:thin:@//postprod-host:1521/POSTPRODDB
+    username: postprod_user
+    password: postprod_password
+    driver-class-name: oracle.jdbc.OracleDriver
+
+app:
+  scheduler:
+    cron: "0 0/5 * * * *"
+  input:
+    directory: lms/file/input
+    files: CLFACV.TXT,CLFACVHASE.TXT
+    charset: UTF-8
+  db:
+    batch-size: 500

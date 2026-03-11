@@ -1,0 +1,19 @@
+spring:
+  config:
+    activate:
+      on-profile: prod
+  datasource:
+    url: jdbc:oracle:thin:@//prod-host:1521/PRODDB
+    username: prod_user
+    password: prod_password
+    driver-class-name: oracle.jdbc.OracleDriver
+
+app:
+  scheduler:
+    cron: "0 0/5 * * * *"
+  input:
+    directory: lms/file/input
+    files: CLFACV.TXT,CLFACVHASE.TXT
+    charset: UTF-8
+  db:
+    batch-size: 500
