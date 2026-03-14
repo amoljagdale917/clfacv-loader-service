@@ -9,7 +9,10 @@ import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.sql.Types;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.regex.Pattern;
 
 @Repository
@@ -20,21 +23,46 @@ public class FixedWidthBatchRepository {
 
     private final JdbcTemplateResolver jdbcTemplateResolver;
 
+    public int deleteAll(String dataSource, String tableName) {
+        validateIdentifier(tableName, "tableName");
+        JdbcTemplate jdbcTemplate = jdbcTemplateResolver.resolve(dataSource);
+        return jdbcTemplate.update("DELETE FROM " + tableName);
+    }
+
     public void saveBatch(String dataSource,
                           String tableName,
                           List<LoaderProperties.ColumnDefinition> columns,
-                          List<List<String>> rows) {
+                          List<List<String>> rows,
+                          String region) {
         if (rows == null || rows.isEmpty()) {
             return;
         }
 
-        String insertSql = buildInsertSql(tableName, columns);
-        JdbcTemplate jdbcTemplate = jdbcTemplateResolver.resolve(dataSource);
+        if (isFacvTargetTable(tableName)) {
+            saveFacvBatch(dataSource, tableName, columns, rows, region);
+            return;
+        }
 
-        jdbcTemplate.batchUpdate(insertSql, rows, rows.size(), this::mapRow);
+        String insertSql = buildGenericInsertSql(tableName, columns);
+        JdbcTemplate jdbcTemplate = jdbcTemplateResolver.resolve(dataSource);
+        jdbcTemplate.batchUpdate(insertSql, rows, rows.size(), this::mapGenericRow);
     }
 
-    private String buildInsertSql(String tableName, List<LoaderProperties.ColumnDefinition> columns) {
+    private void saveFacvBatch(String dataSource,
+                               String tableName,
+                               List<LoaderProperties.ColumnDefinition> columns,
+                               List<List<String>> rows,
+                               String region) {
+        String insertSql = buildFacvInsertSql(tableName);
+        JdbcTemplate jdbcTemplate = jdbcTemplateResolver.resolve(dataSource);
+        Map<String, Integer> columnIndexes = buildColumnIndexes(columns);
+        String normalizedRegion = normalizeRegion(region);
+
+        jdbcTemplate.batchUpdate(insertSql, rows, rows.size(),
+                (ps, row) -> mapFacvRow(ps, row, columnIndexes, normalizedRegion));
+    }
+
+    private String buildGenericInsertSql(String tableName, List<LoaderProperties.ColumnDefinition> columns) {
         validateIdentifier(tableName, "tableName");
 
         List<String> columnNames = new ArrayList<String>(columns.size());
@@ -52,13 +80,21 @@ public class FixedWidthBatchRepository {
                 + ") VALUES (" + String.join(", ", placeholders) + ")";
     }
 
+    private String buildFacvInsertSql(String tableName) {
+        validateIdentifier(tableName, "tableName");
+        return "INSERT INTO " + tableName + " ("
+                + "BNK_NO, CUST_ACCT_NO, SYS_COD, ITL_CUST_NO, CUST_ID, FILLER1, "
+                + "REC_TYPE, TREE_ID, LMT_ID, MAINT_ACT, REGION, BATCH_RUN_ID"
+                + ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)";
+    }
+
     private void validateIdentifier(String identifier, String label) {
         if (identifier == null || !SQL_IDENTIFIER.matcher(identifier).matches()) {
             throw new IllegalArgumentException("Invalid " + label + ": " + identifier);
         }
     }
 
-    private void mapRow(PreparedStatement ps, List<String> row) throws SQLException {
+    private void mapGenericRow(PreparedStatement ps, List<String> row) throws SQLException {
         for (int i = 0; i < row.size(); i++) {
             String value = row.get(i);
             int parameterIndex = i + 1;
@@ -68,6 +104,113 @@ public class FixedWidthBatchRepository {
             } else {
                 ps.setString(parameterIndex, value);
             }
+        }
+    }
+
+    private void mapFacvRow(PreparedStatement ps,
+                            List<String> row,
+                            Map<String, Integer> columnIndexes,
+                            String region) throws SQLException {
+        String bnkNo = valueByName(row, columnIndexes, "BNK_NO");
+        String custAcctNo = valueByName(row, columnIndexes, "CUST_ACCT_NO");
+        String sysCod = valueByName(row, columnIndexes, "SYS_COD");
+        String recType = valueByName(row, columnIndexes, "REC_TYPE");
+        String custGp = valueByName(row, columnIndexes, "CUST_GP");
+        String itlCustNo = valueByName(row, columnIndexes, "ITL_CUST_NO");
+        String filler = valueByName(row, columnIndexes, "FILLER");
+        String lmtId = valueByName(row, columnIndexes, "LMT_ID");
+        String custId = valueByName(row, columnIndexes, "CUST_ID");
+        String filler1 = valueByName(row, columnIndexes, "FILLER1");
+        String maintAct = valueByName(row, columnIndexes, "MAINT_ACT");
+        String treeId = buildTreeId(recType, custGp, itlCustNo, filler);
+
+        setStringOrNull(ps, 1, bnkNo);
+        setStringOrNull(ps, 2, custAcctNo);
+        setStringOrNull(ps, 3, sysCod);
+        setStringOrNull(ps, 4, itlCustNo);
+        setStringOrNull(ps, 5, custId);
+        setStringOrNull(ps, 6, filler1);
+        setStringOrNull(ps, 7, recType);
+        setStringOrNull(ps, 8, treeId);
+        setStringOrNull(ps, 9, lmtId);
+        setStringOrNull(ps, 10, maintAct);
+        setStringOrNull(ps, 11, region);
+    }
+
+    private Map<String, Integer> buildColumnIndexes(List<LoaderProperties.ColumnDefinition> columns) {
+        Map<String, Integer> indexes = new HashMap<String, Integer>(columns.size());
+        for (int i = 0; i < columns.size(); i++) {
+            String columnName = columns.get(i).getName();
+            if (columnName != null && !columnName.trim().isEmpty()) {
+                indexes.put(columnName.trim().toUpperCase(Locale.ROOT), Integer.valueOf(i));
+            }
+        }
+        return indexes;
+    }
+
+    private String valueByName(List<String> row, Map<String, Integer> columnIndexes, String columnName) {
+        Integer index = columnIndexes.get(columnName);
+        if (index == null) {
+            return null;
+        }
+
+        int position = index.intValue();
+        if (position < 0 || position >= row.size()) {
+            return null;
+        }
+
+        return row.get(position);
+    }
+
+    private String buildTreeId(String recType, String custGp, String itlCustNo, String filler) {
+        return joinNonBlank(recType, custGp, itlCustNo, filler);
+    }
+
+    private String joinNonBlank(String... values) {
+        if (values == null || values.length == 0) {
+            return null;
+        }
+
+        StringBuilder builder = new StringBuilder();
+        for (String value : values) {
+            if (value == null) {
+                continue;
+            }
+
+            String trimmed = value.trim();
+            if (trimmed.isEmpty()) {
+                continue;
+            }
+
+            builder.append(trimmed);
+        }
+
+        return builder.length() == 0 ? null : builder.toString();
+    }
+
+    private boolean isFacvTargetTable(String tableName) {
+        if (tableName == null || tableName.trim().isEmpty()) {
+            return false;
+        }
+
+        String normalized = tableName.trim().toUpperCase(Locale.ROOT);
+        return "STG_HK_OBS_FACVDW".equals(normalized);
+    }
+
+    private String normalizeRegion(String region) {
+        if (region == null) {
+            return null;
+        }
+
+        String normalized = region.trim();
+        return normalized.isEmpty() ? null : normalized;
+    }
+
+    private void setStringOrNull(PreparedStatement ps, int index, String value) throws SQLException {
+        if (value == null) {
+            ps.setNull(index, Types.VARCHAR);
+        } else {
+            ps.setString(index, value);
         }
     }
 }

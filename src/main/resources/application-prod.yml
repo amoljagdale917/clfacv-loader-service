@@ -21,7 +21,7 @@ app:
     files:
       - file-name: CLFACV.TXT
         data-source: primary
-        table-name: STG_HK_OBS_FACV
+        table-name: STG_HK_OBS_FACVDW
         columns:
           - name: BNK_NO
             length: 3
@@ -47,7 +47,7 @@ app:
             length: 1
       - file-name: CLFACVHASE.TXT
         data-source: primary
-        table-name: STG_HK_OBS_FACV
+        table-name: STG_HK_OBS_FACVDW
         columns:
           - name: BNK_NO
             length: 3

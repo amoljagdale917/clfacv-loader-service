@@ -17,7 +17,9 @@ import java.nio.file.StandardCopyOption;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 @Service
 @Slf4j
@@ -25,6 +27,8 @@ import java.util.List;
 public class FileLoadingService {
 
     private static final DateTimeFormatter FILE_TS_FORMAT = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss");
+    private static final String HK_FILE = "CLFACV.TXT";
+    private static final String HKHASE_FILE = "CLFACVHASE.TXT";
 
     private final LoaderProperties loaderProperties;
     private final FixedWidthRecordParser parser;
@@ -43,11 +47,22 @@ public class FileLoadingService {
             return;
         }
 
+        List<LoaderProperties.FileDefinition> validDefinitions = new ArrayList<LoaderProperties.FileDefinition>();
         for (LoaderProperties.FileDefinition fileDefinition : files) {
             if (!isValidDefinition(fileDefinition)) {
                 continue;
             }
+            validDefinitions.add(fileDefinition);
+        }
 
+        if (validDefinitions.isEmpty()) {
+            log.warn("No valid file definitions found.");
+            return;
+        }
+
+        clearTargetTables(validDefinitions);
+
+        for (LoaderProperties.FileDefinition fileDefinition : validDefinitions) {
             processSingleFile(fileDefinition);
         }
     }
@@ -111,14 +126,24 @@ public class FileLoadingService {
                 rows.add(parser.parseLine(line, fileDefinition.getColumns()));
 
                 if (rows.size() >= batchSize) {
-                    repository.saveBatch(fileDefinition.getDataSource(), fileDefinition.getTableName(), fileDefinition.getColumns(), rows);
+                    repository.saveBatch(
+                            fileDefinition.getDataSource(),
+                            fileDefinition.getTableName(),
+                            fileDefinition.getColumns(),
+                            rows,
+                            resolveRegionByFileName(fileDefinition.getFileName()));
                     totalInserted += rows.size();
                     rows.clear();
                 }
             }
 
             if (!rows.isEmpty()) {
-                repository.saveBatch(fileDefinition.getDataSource(), fileDefinition.getTableName(), fileDefinition.getColumns(), rows);
+                repository.saveBatch(
+                        fileDefinition.getDataSource(),
+                        fileDefinition.getTableName(),
+                        fileDefinition.getColumns(),
+                        rows,
+                        resolveRegionByFileName(fileDefinition.getFileName()));
                 totalInserted += rows.size();
             }
 
@@ -152,6 +177,40 @@ public class FileLoadingService {
 
     private boolean hasText(String value) {
         return value != null && !value.trim().isEmpty();
+    }
+
+    private void clearTargetTables(List<LoaderProperties.FileDefinition> fileDefinitions) {
+        Set<String> processed = new HashSet<String>();
+
+        for (LoaderProperties.FileDefinition definition : fileDefinitions) {
+            String dataSource = defaultDataSource(definition.getDataSource());
+            String tableName = definition.getTableName().trim();
+            String key = dataSource + "|" + tableName;
+
+            if (!processed.add(key)) {
+                continue;
+            }
+
+            int deletedCount = repository.deleteAll(dataSource, tableName);
+            log.info("Deleted {} rows from {} before load (datasource={})", deletedCount, tableName, dataSource);
+        }
+    }
+
+    private String resolveRegionByFileName(String fileName) {
+        if (fileName == null) {
+            return "HK";
+        }
+
+        String normalized = fileName.trim().toUpperCase();
+        if (HKHASE_FILE.equals(normalized) || normalized.contains("HASE")) {
+            return "HKHASE";
+        }
+
+        if (HK_FILE.equals(normalized)) {
+            return "HK";
+        }
+
+        return "HK";
     }
 
     private void moveProcessedFile(Path sourceFile, boolean successful) {
