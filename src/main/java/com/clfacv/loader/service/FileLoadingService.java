@@ -1,5 +1,6 @@
 package com.clfacv.loader.service;
 
+import com.clfacv.loader.config.FixedWidthLayoutRegistry;
 import com.clfacv.loader.config.LoaderProperties;
 import com.clfacv.loader.parser.FixedWidthRecordParser;
 import com.clfacv.loader.repository.FixedWidthBatchRepository;
@@ -31,6 +32,7 @@ public class FileLoadingService {
     private static final String HKHASE_FILE = "CLFACVHASE.TXT";
 
     private final LoaderProperties loaderProperties;
+    private final FixedWidthLayoutRegistry layoutRegistry;
     private final FixedWidthRecordParser parser;
     private final FixedWidthBatchRepository repository;
 
@@ -47,12 +49,12 @@ public class FileLoadingService {
             return;
         }
 
-        List<LoaderProperties.FileDefinition> validDefinitions = new ArrayList<LoaderProperties.FileDefinition>();
+        List<ResolvedFileDefinition> validDefinitions = new ArrayList<ResolvedFileDefinition>();
         for (LoaderProperties.FileDefinition fileDefinition : files) {
-            if (!isValidDefinition(fileDefinition)) {
-                continue;
+            ResolvedFileDefinition resolved = resolveDefinition(fileDefinition);
+            if (resolved != null) {
+                validDefinitions.add(resolved);
             }
-            validDefinitions.add(fileDefinition);
         }
 
         if (validDefinitions.isEmpty()) {
@@ -62,25 +64,20 @@ public class FileLoadingService {
 
         clearTargetTables(validDefinitions);
 
-        for (LoaderProperties.FileDefinition fileDefinition : validDefinitions) {
+        for (ResolvedFileDefinition fileDefinition : validDefinitions) {
             processSingleFile(fileDefinition);
         }
     }
 
-    private boolean isValidDefinition(LoaderProperties.FileDefinition fileDefinition) {
+    private ResolvedFileDefinition resolveDefinition(LoaderProperties.FileDefinition fileDefinition) {
         if (fileDefinition.getFileName() == null || fileDefinition.getFileName().trim().isEmpty()) {
             log.warn("Skipping file definition with empty file-name.");
-            return false;
+            return null;
         }
 
         if (fileDefinition.getTableName() == null || fileDefinition.getTableName().trim().isEmpty()) {
             log.warn("Skipping {} due to empty table-name.", fileDefinition.getFileName());
-            return false;
-        }
-
-        if (fileDefinition.getColumns() == null || fileDefinition.getColumns().isEmpty()) {
-            log.warn("Skipping {} due to missing columns.", fileDefinition.getFileName());
-            return false;
+            return null;
         }
 
         if (fileDefinition.getDataSource() != null
@@ -88,20 +85,28 @@ public class FileLoadingService {
                 && !isSupportedDataSource(fileDefinition.getDataSource())) {
             log.warn("Skipping {} due to unsupported data-source {}. Use primary or secondary.",
                     fileDefinition.getFileName(), fileDefinition.getDataSource());
-            return false;
+            return null;
         }
 
-        for (LoaderProperties.ColumnDefinition column : fileDefinition.getColumns()) {
+        List<LoaderProperties.ColumnDefinition> columns = layoutRegistry.getColumnsForFile(fileDefinition.getFileName());
+        if (columns.isEmpty()) {
+            log.warn("Skipping {} because no static layout is configured for this file name.", fileDefinition.getFileName());
+            return null;
+        }
+
+        for (LoaderProperties.ColumnDefinition column : columns) {
             if (column.getName() == null || column.getName().trim().isEmpty() || column.getLength() <= 0) {
-                log.warn("Skipping {} due to invalid column configuration.", fileDefinition.getFileName());
-                return false;
+                log.warn("Skipping {} due to invalid static layout configuration.", fileDefinition.getFileName());
+                return null;
             }
         }
 
-        return true;
+        return new ResolvedFileDefinition(fileDefinition, columns);
     }
 
-    void processSingleFile(LoaderProperties.FileDefinition fileDefinition) {
+    void processSingleFile(ResolvedFileDefinition resolved) {
+        LoaderProperties.FileDefinition fileDefinition = resolved.getDefinition();
+        List<LoaderProperties.ColumnDefinition> columns = resolved.getColumns();
         Path filePath = Paths.get(loaderProperties.getInputDirectory(), fileDefinition.getFileName());
 
         if (!Files.exists(filePath)) {
@@ -123,13 +128,13 @@ public class FileLoadingService {
                     continue;
                 }
 
-                rows.add(parser.parseLine(line, fileDefinition.getColumns()));
+                rows.add(parser.parseLine(line, columns));
 
                 if (rows.size() >= batchSize) {
                     repository.saveBatch(
                             fileDefinition.getDataSource(),
                             fileDefinition.getTableName(),
-                            fileDefinition.getColumns(),
+                            columns,
                             rows,
                             resolveRegionByFileName(fileDefinition.getFileName()));
                     totalInserted += rows.size();
@@ -141,7 +146,7 @@ public class FileLoadingService {
                 repository.saveBatch(
                         fileDefinition.getDataSource(),
                         fileDefinition.getTableName(),
-                        fileDefinition.getColumns(),
+                        columns,
                         rows,
                         resolveRegionByFileName(fileDefinition.getFileName()));
                 totalInserted += rows.size();
@@ -179,10 +184,11 @@ public class FileLoadingService {
         return value != null && !value.trim().isEmpty();
     }
 
-    private void clearTargetTables(List<LoaderProperties.FileDefinition> fileDefinitions) {
+    private void clearTargetTables(List<ResolvedFileDefinition> fileDefinitions) {
         Set<String> processed = new HashSet<String>();
 
-        for (LoaderProperties.FileDefinition definition : fileDefinitions) {
+        for (ResolvedFileDefinition resolved : fileDefinitions) {
+            LoaderProperties.FileDefinition definition = resolved.getDefinition();
             String dataSource = defaultDataSource(definition.getDataSource());
             String tableName = definition.getTableName().trim();
             String key = dataSource + "|" + tableName;
@@ -221,7 +227,7 @@ public class FileLoadingService {
         }
 
         Path targetDirPath = Paths.get(targetDirectory);
-        String stampedName = sourceFile.getFileName().toString() + "_" + LocalDateTime.now().format(FILE_TS_FORMAT);
+        String stampedName = buildStampedFileName(sourceFile.getFileName().toString());
         Path targetFile = targetDirPath.resolve(stampedName);
 
         try {
@@ -230,6 +236,38 @@ public class FileLoadingService {
             log.info("Moved {} to {}", sourceFile.getFileName(), targetFile);
         } catch (IOException ex) {
             log.error("Failed to move {} to {}", sourceFile.getFileName(), targetFile, ex);
+        }
+    }
+
+    private String buildStampedFileName(String originalFileName) {
+        String timestamp = LocalDateTime.now().format(FILE_TS_FORMAT);
+        int dotIndex = originalFileName.lastIndexOf('.');
+        if (dotIndex <= 0 || dotIndex == originalFileName.length() - 1) {
+            return originalFileName + "_" + timestamp;
+        }
+
+        String baseName = originalFileName.substring(0, dotIndex);
+        String extension = originalFileName.substring(dotIndex);
+        return baseName + "_" + timestamp + extension;
+    }
+
+    private static class ResolvedFileDefinition {
+
+        private final LoaderProperties.FileDefinition definition;
+        private final List<LoaderProperties.ColumnDefinition> columns;
+
+        private ResolvedFileDefinition(LoaderProperties.FileDefinition definition,
+                                       List<LoaderProperties.ColumnDefinition> columns) {
+            this.definition = definition;
+            this.columns = columns;
+        }
+
+        private LoaderProperties.FileDefinition getDefinition() {
+            return definition;
+        }
+
+        private List<LoaderProperties.ColumnDefinition> getColumns() {
+            return columns;
         }
     }
 }

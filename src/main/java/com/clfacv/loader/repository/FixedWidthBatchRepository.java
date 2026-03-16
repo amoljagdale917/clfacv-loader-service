@@ -20,6 +20,8 @@ import java.util.regex.Pattern;
 public class FixedWidthBatchRepository {
 
     private static final Pattern SQL_IDENTIFIER = Pattern.compile("[A-Za-z][A-Za-z0-9_$#.]*");
+    private static final String FACV_TABLE = "STG_HK_OBS_FACVDW";
+    private static final String IMTM_TABLE = "STG_HK_OBS_IMTM";
 
     private final JdbcTemplateResolver jdbcTemplateResolver;
 
@@ -43,6 +45,11 @@ public class FixedWidthBatchRepository {
             return;
         }
 
+        if (isImtmTargetTable(tableName)) {
+            saveImtmBatch(dataSource, tableName, columns, rows);
+            return;
+        }
+
         String insertSql = buildGenericInsertSql(tableName, columns);
         JdbcTemplate jdbcTemplate = jdbcTemplateResolver.resolve(dataSource);
         jdbcTemplate.batchUpdate(insertSql, rows, rows.size(), this::mapGenericRow);
@@ -62,6 +69,15 @@ public class FixedWidthBatchRepository {
                 (ps, row) -> mapFacvRow(ps, row, columnIndexes, normalizedRegion));
     }
 
+    private void saveImtmBatch(String dataSource,
+                               String tableName,
+                               List<LoaderProperties.ColumnDefinition> columns,
+                               List<List<String>> rows) {
+        String insertSql = buildImtmInsertSql(tableName, columns);
+        JdbcTemplate jdbcTemplate = jdbcTemplateResolver.resolve(dataSource);
+        jdbcTemplate.batchUpdate(insertSql, rows, rows.size(), this::mapGenericRow);
+    }
+
     private String buildGenericInsertSql(String tableName, List<LoaderProperties.ColumnDefinition> columns) {
         validateIdentifier(tableName, "tableName");
 
@@ -75,6 +91,27 @@ public class FixedWidthBatchRepository {
             columnNames.add(columnName);
             placeholders.add("?");
         }
+
+        return "INSERT INTO " + tableName + " (" + String.join(", ", columnNames)
+                + ") VALUES (" + String.join(", ", placeholders) + ")";
+    }
+
+    private String buildImtmInsertSql(String tableName, List<LoaderProperties.ColumnDefinition> columns) {
+        validateIdentifier(tableName, "tableName");
+
+        List<String> columnNames = new ArrayList<String>(columns.size() + 1);
+        List<String> placeholders = new ArrayList<String>(columns.size() + 1);
+
+        for (LoaderProperties.ColumnDefinition column : columns) {
+            String columnName = column.getName();
+            validateIdentifier(columnName, "columnName");
+
+            columnNames.add(columnName);
+            placeholders.add("?");
+        }
+
+        columnNames.add("BATCH_RUN_ID");
+        placeholders.add("1");
 
         return "INSERT INTO " + tableName + " (" + String.join(", ", columnNames)
                 + ") VALUES (" + String.join(", ", placeholders) + ")";
@@ -189,12 +226,20 @@ public class FixedWidthBatchRepository {
     }
 
     private boolean isFacvTargetTable(String tableName) {
+        return isTargetTable(tableName, FACV_TABLE);
+    }
+
+    private boolean isImtmTargetTable(String tableName) {
+        return isTargetTable(tableName, IMTM_TABLE);
+    }
+
+    private boolean isTargetTable(String tableName, String expectedTableName) {
         if (tableName == null || tableName.trim().isEmpty()) {
             return false;
         }
 
         String normalized = tableName.trim().toUpperCase(Locale.ROOT);
-        return "STG_HK_OBS_FACVDW".equals(normalized);
+        return expectedTableName.equals(normalized);
     }
 
     private String normalizeRegion(String region) {
