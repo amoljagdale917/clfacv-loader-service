@@ -27,16 +27,14 @@ public class FixedWidthBatchRepository {
     private static final List<String> IMTM_EXTRA_COLUMNS = Arrays.asList("REGION", "BATCH_RUN_ID");
     private static final List<String> IMTM_EXTRA_VALUES = Arrays.asList("?", "1");
 
-    private final JdbcTemplateResolver jdbcTemplateResolver;
+    private final JdbcTemplate jdbcTemplate;
 
-    public int deleteAll(String dataSource, String tableName) {
+    public int deleteAll(String tableName) {
         validateIdentifier(tableName, "tableName");
-        JdbcTemplate jdbcTemplate = jdbcTemplateResolver.resolve(dataSource);
         return jdbcTemplate.update("DELETE FROM " + tableName);
     }
 
-    public void saveBatch(String dataSource,
-                          String tableName,
+    public void saveBatch(String tableName,
                           List<LoaderProperties.ColumnDefinition> columns,
                           List<List<String>> rows,
                           String region) {
@@ -45,27 +43,24 @@ public class FixedWidthBatchRepository {
         }
 
         if (isFacvTargetTable(tableName)) {
-            saveFacvBatch(dataSource, tableName, columns, rows, region);
+            saveFacvBatch(tableName, columns, rows, region);
             return;
         }
 
         if (isImtmTargetTable(tableName)) {
-            saveImtmBatch(dataSource, tableName, columns, rows, region);
+            saveImtmBatch(tableName, columns, rows, region);
             return;
         }
 
         String insertSql = buildGenericInsertSql(tableName, columns);
-        JdbcTemplate jdbcTemplate = jdbcTemplateResolver.resolve(dataSource);
         jdbcTemplate.batchUpdate(insertSql, rows, rows.size(), this::mapGenericRow);
     }
 
-    private void saveFacvBatch(String dataSource,
-                               String tableName,
+    private void saveFacvBatch(String tableName,
                                List<LoaderProperties.ColumnDefinition> columns,
                                List<List<String>> rows,
                                String region) {
         String insertSql = buildFacvInsertSql(tableName);
-        JdbcTemplate jdbcTemplate = jdbcTemplateResolver.resolve(dataSource);
         Map<String, Integer> columnIndexes = buildColumnIndexes(columns);
         String normalizedRegion = normalizeRegion(region);
 
@@ -73,13 +68,11 @@ public class FixedWidthBatchRepository {
                 (ps, row) -> mapFacvRow(ps, row, columnIndexes, normalizedRegion));
     }
 
-    private void saveImtmBatch(String dataSource,
-                               String tableName,
+    private void saveImtmBatch(String tableName,
                                List<LoaderProperties.ColumnDefinition> columns,
                                List<List<String>> rows,
                                String region) {
         String insertSql = buildImtmInsertSql(tableName, columns);
-        JdbcTemplate jdbcTemplate = jdbcTemplateResolver.resolve(dataSource);
         String normalizedRegion = normalizeRegion(region);
         jdbcTemplate.batchUpdate(insertSql, rows, rows.size(),
                 (ps, row) -> mapImtmRow(ps, row, normalizedRegion));

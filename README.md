@@ -27,8 +27,8 @@ They are resolved from static registry:
    - `failed-directory`
 3. Loader reads configured files from `app.loader.files`.
 4. For each file, loader resolves fixed-width layout from `FixedWidthLayoutRegistry` by file name (extension ignored).
-5. Loader validates datasource key (`primary` / `secondary`) and layout columns.
-6. Before file processing starts, loader deletes existing rows from each unique `datasource + table`.
+5. Loader validates layout columns.
+6. Before file processing starts, loader deletes existing rows from each unique target table.
 7. For each configured file:
    - reads line by line
    - parses fixed-width values by layout lengths
@@ -55,13 +55,12 @@ Set values in:
 
 Important keys:
 - `spring.datasource.*` (primary datasource)
-- optional `app.secondary-datasource.*` (secondary datasource)
 - `app.loader.scheduler.cron`
 - `app.loader.input-directory`
 - `app.loader.success-directory`
 - `app.loader.failed-directory`
 - `app.loader.batch-size`
-- `app.loader.files[]` (`file-name`, `data-source`, `table-name`)
+- `app.loader.files[]` (`file-name`, `table-name`)
 
 ## Run
 Postprod:
@@ -75,6 +74,6 @@ mvn spring-boot:run -Dspring-boot.run.profiles=prod
 ```
 
 ## Add a new loader file
-1. Add file entry in profile YAML (`file-name`, `data-source`, `table-name`).
+1. Add file entry in profile YAML (`file-name`, `table-name`).
 2. Add corresponding static layout in `FixedWidthLayoutRegistry`.
 3. If target table needs special insert behavior, extend `FixedWidthBatchRepository`.

@@ -20,11 +20,8 @@ app:
     batch-size: 500
     files:
       - file-name: CLFACV.TXT
-        data-source: primary
         table-name: STG_HK_OBS_FACVDW
       - file-name: CLFACVHASE.TXT
-        data-source: primary
         table-name: STG_HK_OBS_FACVDW
       - file-name: CLIMTM.TXT
-        data-source: primary
         table-name: STG_HK_OBS_IMTM

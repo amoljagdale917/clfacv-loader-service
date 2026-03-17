@@ -25,10 +25,9 @@ import java.util.Set;
 @Service
 @Slf4j
 @RequiredArgsConstructor
-public class FileLoadingService {
+    public class FileLoadingService {
 
     private static final DateTimeFormatter FILE_TS_FORMAT = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss");
-    private static final String HK_FILE = "CLFACV.TXT";
     private static final String HKHASE_FILE = "CLFACVHASE.TXT";
 
     private final LoaderProperties loaderProperties;
@@ -77,14 +76,6 @@ public class FileLoadingService {
 
         if (fileDefinition.getTableName() == null || fileDefinition.getTableName().trim().isEmpty()) {
             log.warn("Skipping {} due to empty table-name.", fileDefinition.getFileName());
-            return null;
-        }
-
-        if (fileDefinition.getDataSource() != null
-                && !fileDefinition.getDataSource().trim().isEmpty()
-                && !isSupportedDataSource(fileDefinition.getDataSource())) {
-            log.warn("Skipping {} due to unsupported data-source {}. Use primary or secondary.",
-                    fileDefinition.getFileName(), fileDefinition.getDataSource());
             return null;
         }
 
@@ -137,26 +128,14 @@ public class FileLoadingService {
 
             totalInserted += flushBatch(fileDefinition, columns, rows);
 
-            log.info("Finished {} -> {} (datasource={}). Lines read: {}, rows inserted: {}",
-                    fileDefinition.getFileName(), fileDefinition.getTableName(), defaultDataSource(fileDefinition.getDataSource()), totalLines, totalInserted);
+            log.info("Finished {} -> {}. Lines read: {}, rows inserted: {}",
+                    fileDefinition.getFileName(), fileDefinition.getTableName(), totalLines, totalInserted);
             processingSuccess = true;
         } catch (Exception ex) {
             log.error("Error while processing file {}", filePath, ex);
         } finally {
             moveProcessedFile(filePath, processingSuccess);
         }
-    }
-
-    private String defaultDataSource(String dataSource) {
-        if (dataSource == null || dataSource.trim().isEmpty()) {
-            return "primary";
-        }
-        return dataSource.trim();
-    }
-
-    private boolean isSupportedDataSource(String dataSource) {
-        String key = dataSource.trim().toLowerCase();
-        return "primary".equals(key) || "secondary".equals(key);
     }
 
     private boolean hasLoaderDirectoriesConfigured() {
@@ -174,16 +153,14 @@ public class FileLoadingService {
 
         for (ResolvedFileDefinition resolved : fileDefinitions) {
             LoaderProperties.FileDefinition definition = resolved.getDefinition();
-            String dataSource = defaultDataSource(definition.getDataSource());
             String tableName = definition.getTableName().trim();
-            String key = dataSource + "|" + tableName;
 
-            if (!processed.add(key)) {
+            if (!processed.add(tableName)) {
                 continue;
             }
 
-            int deletedCount = repository.deleteAll(dataSource, tableName);
-            log.info("Deleted {} rows from {} before load (datasource={})", deletedCount, tableName, dataSource);
+            int deletedCount = repository.deleteAll(tableName);
+            log.info("Deleted {} rows from {} before load", deletedCount, tableName);
         }
     }
 
@@ -206,7 +183,6 @@ public class FileLoadingService {
         }
 
         repository.saveBatch(
-                fileDefinition.getDataSource(),
                 fileDefinition.getTableName(),
                 columns,
                 rows,

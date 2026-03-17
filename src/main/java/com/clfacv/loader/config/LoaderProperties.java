@@ -26,7 +26,6 @@ public class LoaderProperties {
     public static class FileDefinition {
 
         private String fileName;
-        private String dataSource;
         private String tableName;
         private List<ColumnDefinition> columns = new ArrayList<ColumnDefinition>();
     }
