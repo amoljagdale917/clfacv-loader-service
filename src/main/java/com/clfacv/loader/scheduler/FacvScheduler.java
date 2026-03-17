@@ -13,7 +13,7 @@ public class FacvScheduler {
 
     private final FileLoadingService loadingService;
 
-    @Scheduled(cron = "${app.loader.scheduler.cron:0 0/5 * * * *}")
+    @Scheduled(cron = "${app.loader.scheduler.cron}")
     public void loadFacvFiles() {
         log.info("File loader scheduler started");
         loadingService.processConfiguredFiles();
