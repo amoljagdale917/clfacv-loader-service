@@ -1,120 +1,80 @@
 # clfacv-loader
 
-Spring Boot scheduler-based fixed-width file loader.
+Spring Boot scheduler-based fixed-width file loader for Oracle.
 
 ## Tech stack
 - Java 8
 - Spring Boot 2.7.7
 - Maven
 - Spring JDBC + Oracle (`ojdbc8`)
+- Lombok
 
-## Current setup
-Current config loads:
-- `CLFACV.TXT`
-- `CLFACVHASE.TXT`
+## Active files and tables
+Configured loaders (profile YAML):
+- `CLFACV.TXT` -> `STG_HK_OBS_FACVDW`
+- `CLFACVHASE.TXT` -> `STG_HK_OBS_FACVDW`
+- `CLIMTM.TXT` -> `STG_HK_OBS_IMTM`
 
-Both are mapped to table `STG_HK_OBS_FACV` using lengths:
-`3,12,3,1,1,11,11,5,11,7,1`
+Column layouts are **not** read from YAML now.  
+They are resolved from static registry:
+- `src/main/java/com/clfacv/loader/config/FixedWidthLayoutRegistry.java`
 
-## Reusable loader logic
-Loader is now config-driven using `app.loader.files` in active profile files:
+## Loader flow (step by step)
+1. Scheduler triggers from `app.loader.scheduler.cron` in active profile.
+2. Loader validates required directories:
+   - `input-directory`
+   - `success-directory`
+   - `failed-directory`
+3. Loader reads configured files from `app.loader.files`.
+4. For each file, loader resolves fixed-width layout from `FixedWidthLayoutRegistry` by file name (extension ignored).
+5. Loader validates datasource key (`primary` / `secondary`) and layout columns.
+6. Before file processing starts, loader deletes existing rows from each unique `datasource + table`.
+7. For each configured file:
+   - reads line by line
+   - parses fixed-width values by layout lengths
+   - trims leading/trailing spaces
+   - stores `NULL` for empty trimmed values
+   - inserts in batches (`batch-size`)
+8. Insert behavior:
+   - `STG_HK_OBS_FACVDW`: special insert with derived `TREE_ID`, `REGION`, and hardcoded `BATCH_RUN_ID = 1`
+   - `STG_HK_OBS_IMTM`: insert with configured layout columns + `REGION` + hardcoded `BATCH_RUN_ID = 1`
+9. Region mapping:
+   - `CLFACVHASE*` -> `HKHASE`
+   - all other files -> `HK`
+10. After processing each file:
+   - success -> move to `success-directory`
+   - failure -> move to `failed-directory`
+11. Moved filename format:
+   - `<baseName>_yyyyMMdd_HHmmss<extension>`
+   - example: `CLFACV_20260317_114500.TXT`
+
+## Profile configuration
+Set values in:
 - `src/main/resources/application-postprod.yml`
 - `src/main/resources/application-prod.yml`
 
-For each configured file:
-- parse fixed-width columns by configured lengths
-- use configured datasource (`primary` or `secondary`)
-- trim leading/trailing spaces before save
-- save `NULL` if trimmed value is empty
-- preserve internal spaces (example: `" A B "` -> `"A B"`)
-- insert into configured table in Oracle
-- if load succeeds, move file to `success-directory`
-- if load fails, move file to `failed-directory`
-- moved name format: `fileName_yyyyMMdd_HHmmss`
-
-## Add new file/table (no code change)
-Add a new item under `app.loader.files` in the active profile YAML:
-
-```yaml
-app:
-  loader:
-    files:
-      - file-name: NEWFILE.TXT
-        data-source: primary
-        table-name: STG_NEW_TABLE
-        columns:
-          - name: COL1
-            length: 10
-          - name: COL2
-            length: 5
-```
-
-## Configure DB profiles
-Set datasource values in:
-- `src/main/resources/application-postprod.yml`
-- `src/main/resources/application-prod.yml`
-
-Primary datasource:
-- configured with `spring.datasource.*`
-
-Optional secondary datasource:
-- configure `app.secondary-datasource.*`
-- when not configured, only `primary` is usable
-
-Example secondary datasource config:
-```yaml
-app:
-  secondary-datasource:
-    url: jdbc:oracle:thin:@//host:1521/SERVICE
-    username: user2
-    password: pass2
-    driver-class-name: oracle.jdbc.OracleDriver
-```
-
-Use required datasource per file:
-```yaml
-app:
-  loader:
-    files:
-      - file-name: FILE_A.TXT
-        data-source: primary
-        table-name: TABLE_A
-        columns: [...]
-      - file-name: FILE_B.TXT
-        data-source: secondary
-        table-name: TABLE_B
-        columns: [...]
-```
-
-## Profile paths
-Postprod:
-- input: `/var/hub/incomong`
-- success: `/var/file/success`
-- failed: `/var/file/failed`
-
-Prod:
-- input: `lms/files/input`
-- success: `lms/files/success`
-- failed: `lms/files/failed`
+Important keys:
+- `spring.datasource.*` (primary datasource)
+- optional `app.secondary-datasource.*` (secondary datasource)
+- `app.loader.scheduler.cron`
+- `app.loader.input-directory`
+- `app.loader.success-directory`
+- `app.loader.failed-directory`
+- `app.loader.batch-size`
+- `app.loader.files[]` (`file-name`, `data-source`, `table-name`)
 
 ## Run
+Postprod:
 ```bash
 mvn spring-boot:run -Dspring-boot.run.profiles=postprod
 ```
 
-or
-
+Prod:
 ```bash
 mvn spring-boot:run -Dspring-boot.run.profiles=prod
 ```
 
-## Scheduler
-Cron is profile-specific:
-- `src/main/resources/application-prod.yml`: `app.loader.scheduler.cron=0 0 0 * * *` (midnight daily)
-- `src/main/resources/application-postprod.yml`: `app.loader.scheduler.cron=0 0/2 * * * *` (test default, change as needed)
-
-If profile cron is not set, code fallback is:
-
-```properties
-app.loader.scheduler.cron=0 0/5 * * * *
-```
+## Add a new loader file
+1. Add file entry in profile YAML (`file-name`, `data-source`, `table-name`).
+2. Add corresponding static layout in `FixedWidthLayoutRegistry`.
+3. If target table needs special insert behavior, extend `FixedWidthBatchRepository`.
