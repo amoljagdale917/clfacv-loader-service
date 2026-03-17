@@ -131,26 +131,11 @@ public class FileLoadingService {
                 rows.add(parser.parseLine(line, columns));
 
                 if (rows.size() >= batchSize) {
-                    repository.saveBatch(
-                            fileDefinition.getDataSource(),
-                            fileDefinition.getTableName(),
-                            columns,
-                            rows,
-                            resolveRegionByFileName(fileDefinition.getFileName()));
-                    totalInserted += rows.size();
-                    rows.clear();
+                    totalInserted += flushBatch(fileDefinition, columns, rows);
                 }
             }
 
-            if (!rows.isEmpty()) {
-                repository.saveBatch(
-                        fileDefinition.getDataSource(),
-                        fileDefinition.getTableName(),
-                        columns,
-                        rows,
-                        resolveRegionByFileName(fileDefinition.getFileName()));
-                totalInserted += rows.size();
-            }
+            totalInserted += flushBatch(fileDefinition, columns, rows);
 
             log.info("Finished {} -> {} (datasource={}). Lines read: {}, rows inserted: {}",
                     fileDefinition.getFileName(), fileDefinition.getTableName(), defaultDataSource(fileDefinition.getDataSource()), totalLines, totalInserted);
@@ -203,20 +188,33 @@ public class FileLoadingService {
     }
 
     private String resolveRegionByFileName(String fileName) {
-        if (fileName == null) {
-            return "HK";
-        }
-
-        String normalized = fileName.trim().toUpperCase();
-        if (HKHASE_FILE.equals(normalized) || normalized.contains("HASE")) {
-            return "HKHASE";
-        }
-
-        if (HK_FILE.equals(normalized)) {
-            return "HK";
+        if (fileName != null) {
+            String normalized = fileName.trim().toUpperCase();
+            if (HKHASE_FILE.equals(normalized) || normalized.contains("HASE")) {
+                return "HKHASE";
+            }
         }
 
         return "HK";
+    }
+
+    private int flushBatch(LoaderProperties.FileDefinition fileDefinition,
+                           List<LoaderProperties.ColumnDefinition> columns,
+                           List<List<String>> rows) {
+        if (rows.isEmpty()) {
+            return 0;
+        }
+
+        repository.saveBatch(
+                fileDefinition.getDataSource(),
+                fileDefinition.getTableName(),
+                columns,
+                rows,
+                resolveRegionByFileName(fileDefinition.getFileName()));
+
+        int inserted = rows.size();
+        rows.clear();
+        return inserted;
     }
 
     private void moveProcessedFile(Path sourceFile, boolean successful) {

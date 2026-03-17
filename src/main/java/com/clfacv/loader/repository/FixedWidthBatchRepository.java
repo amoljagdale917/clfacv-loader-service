@@ -9,6 +9,8 @@ import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.sql.Types;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -22,6 +24,8 @@ public class FixedWidthBatchRepository {
     private static final Pattern SQL_IDENTIFIER = Pattern.compile("[A-Za-z][A-Za-z0-9_$#.]*");
     private static final String FACV_TABLE = "STG_HK_OBS_FACVDW";
     private static final String IMTM_TABLE = "STG_HK_OBS_IMTM";
+    private static final List<String> IMTM_EXTRA_COLUMNS = Arrays.asList("REGION", "BATCH_RUN_ID");
+    private static final List<String> IMTM_EXTRA_VALUES = Arrays.asList("?", "1");
 
     private final JdbcTemplateResolver jdbcTemplateResolver;
 
@@ -46,7 +50,7 @@ public class FixedWidthBatchRepository {
         }
 
         if (isImtmTargetTable(tableName)) {
-            saveImtmBatch(dataSource, tableName, columns, rows);
+            saveImtmBatch(dataSource, tableName, columns, rows, region);
             return;
         }
 
@@ -72,35 +76,33 @@ public class FixedWidthBatchRepository {
     private void saveImtmBatch(String dataSource,
                                String tableName,
                                List<LoaderProperties.ColumnDefinition> columns,
-                               List<List<String>> rows) {
+                               List<List<String>> rows,
+                               String region) {
         String insertSql = buildImtmInsertSql(tableName, columns);
         JdbcTemplate jdbcTemplate = jdbcTemplateResolver.resolve(dataSource);
-        jdbcTemplate.batchUpdate(insertSql, rows, rows.size(), this::mapGenericRow);
+        String normalizedRegion = normalizeRegion(region);
+        jdbcTemplate.batchUpdate(insertSql, rows, rows.size(),
+                (ps, row) -> mapImtmRow(ps, row, normalizedRegion));
     }
 
     private String buildGenericInsertSql(String tableName, List<LoaderProperties.ColumnDefinition> columns) {
-        validateIdentifier(tableName, "tableName");
-
-        List<String> columnNames = new ArrayList<String>(columns.size());
-        List<String> placeholders = new ArrayList<String>(columns.size());
-
-        for (LoaderProperties.ColumnDefinition column : columns) {
-            String columnName = column.getName();
-            validateIdentifier(columnName, "columnName");
-
-            columnNames.add(columnName);
-            placeholders.add("?");
-        }
-
-        return "INSERT INTO " + tableName + " (" + String.join(", ", columnNames)
-                + ") VALUES (" + String.join(", ", placeholders) + ")";
+        return buildInsertSql(tableName, columns, Collections.<String>emptyList(), Collections.<String>emptyList());
     }
 
     private String buildImtmInsertSql(String tableName, List<LoaderProperties.ColumnDefinition> columns) {
         validateIdentifier(tableName, "tableName");
+        return buildInsertSql(tableName, columns, IMTM_EXTRA_COLUMNS, IMTM_EXTRA_VALUES);
+    }
 
-        List<String> columnNames = new ArrayList<String>(columns.size() + 1);
-        List<String> placeholders = new ArrayList<String>(columns.size() + 1);
+    private String buildInsertSql(String tableName,
+                                  List<LoaderProperties.ColumnDefinition> columns,
+                                  List<String> extraColumns,
+                                  List<String> extraValues) {
+        validateIdentifier(tableName, "tableName");
+
+        int extraCount = extraColumns == null ? 0 : extraColumns.size();
+        List<String> columnNames = new ArrayList<String>(columns.size() + extraCount);
+        List<String> placeholders = new ArrayList<String>(columns.size() + extraCount);
 
         for (LoaderProperties.ColumnDefinition column : columns) {
             String columnName = column.getName();
@@ -110,8 +112,19 @@ public class FixedWidthBatchRepository {
             placeholders.add("?");
         }
 
-        columnNames.add("BATCH_RUN_ID");
-        placeholders.add("1");
+        if (extraCount > 0) {
+            if (extraValues == null || extraColumns.size() != extraValues.size()) {
+                throw new IllegalArgumentException("extraColumns and extraValues size mismatch");
+            }
+
+            for (int i = 0; i < extraColumns.size(); i++) {
+                String extraColumn = extraColumns.get(i);
+                String extraValue = extraValues.get(i);
+                validateIdentifier(extraColumn, "columnName");
+                columnNames.add(extraColumn);
+                placeholders.add(extraValue);
+            }
+        }
 
         return "INSERT INTO " + tableName + " (" + String.join(", ", columnNames)
                 + ") VALUES (" + String.join(", ", placeholders) + ")";
@@ -172,6 +185,13 @@ public class FixedWidthBatchRepository {
         setStringOrNull(ps, 9, lmtId);
         setStringOrNull(ps, 10, maintAct);
         setStringOrNull(ps, 11, region);
+    }
+
+    private void mapImtmRow(PreparedStatement ps,
+                            List<String> row,
+                            String region) throws SQLException {
+        mapGenericRow(ps, row);
+        setStringOrNull(ps, row.size() + 1, region);
     }
 
     private Map<String, Integer> buildColumnIndexes(List<LoaderProperties.ColumnDefinition> columns) {
