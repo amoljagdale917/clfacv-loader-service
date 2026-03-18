@@ -34,6 +34,12 @@ public class FixedWidthBatchRepository {
         return jdbcTemplate.update("DELETE FROM " + tableName);
     }
 
+    public int countAll(String tableName) {
+        validateIdentifier(tableName, "tableName");
+        Integer count = jdbcTemplate.queryForObject("SELECT COUNT(1) FROM " + tableName, Integer.class);
+        return count == null ? 0 : count.intValue();
+    }
+
     public void saveBatch(String tableName,
                           List<LoaderProperties.ColumnDefinition> columns,
                           List<List<String>> rows,

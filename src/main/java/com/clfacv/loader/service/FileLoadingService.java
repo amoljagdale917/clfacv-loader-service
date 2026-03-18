@@ -159,7 +159,25 @@ import java.util.Set;
                 continue;
             }
 
+            int beforeCount = repository.countAll(tableName);
+            if (beforeCount == 0) {
+                log.info("Skip delete for {} because row count is 0.", tableName);
+                continue;
+            }
+
             int deletedCount = repository.deleteAll(tableName);
+            if (deletedCount != beforeCount) {
+                throw new IllegalStateException("Delete count mismatch for table " + tableName
+                        + ". Count before delete: " + beforeCount
+                        + ", delete returned: " + deletedCount);
+            }
+
+            int afterCount = repository.countAll(tableName);
+            if (afterCount != 0) {
+                throw new IllegalStateException("Table " + tableName
+                        + " is not empty after delete. Remaining row count: " + afterCount);
+            }
+
             log.info("Deleted {} rows from {} before load", deletedCount, tableName);
         }
     }
